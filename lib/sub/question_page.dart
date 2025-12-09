@@ -1,0 +1,102 @@
+import 'dart:convert';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../detail/detail_page.dart';
+import 'package:firebase_analytics/firebase_analytics.dart'; // 추가
+
+class QuestionPage extends StatefulWidget {
+  final Map<String, dynamic> question; // ← JSON에서 받은 질문 1개
+  const QuestionPage({super.key, required this.question});
+
+  @override
+  State<StatefulWidget> createState() {
+    return _QuestionPage();
+  }
+}
+
+class _QuestionPage extends State<QuestionPage> {
+  String title = '';
+  int? selectedOption; // ← 사용자가 고른 보기 번호
+
+  Future<String> loadAsset(String fileName) async {
+    return await rootBundle.loadString('res/api/$fileName.json');
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    title = widget.question['title'] as String;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(title),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              widget.question['question'] as String,
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 20),
+            Expanded(
+              child: ListView.builder(
+                itemCount: (widget.question['selects'] as List<dynamic>).length,
+                itemBuilder: (context, index) {
+                  return RadioListTile<int>(
+                    title: Text(widget.question['selects'][index] as String),
+                    value: index,
+                    groupValue: selectedOption,
+                    onChanged: (int? value) {
+                      setState(() {
+                        selectedOption = value;
+                      });
+                    },
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 20),
+            Center(
+              child: ElevatedButton(
+                onPressed: selectedOption == null
+                    ? null
+                    : () async {
+                  try {
+                    await FirebaseAnalytics.instance.logEvent(
+                      name: "personal_select",
+                      parameters: {
+                        "test_name": title,
+                        "select": selectedOption ?? 0,
+                      },
+                    );
+                    if (!mounted) return;
+                    await Navigator.of(context).pushReplacement(
+                      MaterialPageRoute(
+                        builder: (context) => DetailPage(
+                          answer: widget.question['answer'][selectedOption],
+                          question: widget.question['question'],
+                        ),
+                      ),
+                    );
+                  } catch (e) {
+                    print('Failed to log event: $e');
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error: $e')),
+                    );
+                  }
+                },
+                child: const Text('성격 보기'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
